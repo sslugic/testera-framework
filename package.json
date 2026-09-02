@@ -15,7 +15,9 @@
     "demo:server": "tsx demo/demo-server.ts",
     "explore": "tsx src/cli/cli.ts explore",
     "journey": "tsx src/cli/cli.ts journey",
-    "heal": "tsx src/cli/cli.ts heal"
+    "heal": "tsx src/cli/cli.ts heal",
+    "audit:suite": "tsx scripts/audit-testera-suite.ts",
+    "test:generated": "playwright test reports/testera-suite/*.spec.ts"
   },
   "keywords": [
     "testing",

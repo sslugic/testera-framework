@@ -121,7 +121,6 @@ export class MockProvider implements LLMProvider {
     schema: z.ZodSchema<T>,
     _systemPrompt?: string
   ): Promise<T> {
-    // If prompt requests ActionPlan schema:
     if (prompt.includes('ActionPlan') || prompt.includes('targetIndex')) {
       const lowerPrompt = prompt.toLowerCase();
 
@@ -131,11 +130,14 @@ export class MockProvider implements LLMProvider {
         lowerPrompt.includes('order #') ||
         lowerPrompt.includes('order confirmed') ||
         lowerPrompt.includes('success-banner') ||
-        lowerPrompt.includes('🎉')
+        lowerPrompt.includes('welcome') ||
+        lowerPrompt.includes('dashboard') ||
+        (lowerPrompt.includes('sign in') && prompt.includes('Step 5') && prompt.includes('Sign In')) ||
+        (lowerPrompt.includes('sign up') && prompt.includes('Step 6') && prompt.includes('Sign Up'))
       ) {
         return schema.parse({
           action: 'finish',
-          rationale: 'Goal has been successfully achieved. Order confirmation is displayed.',
+          rationale: 'Goal has been successfully achieved or finalized.',
           isGoalComplete: true,
           confidence: 0.98,
         });
@@ -166,6 +168,25 @@ export class MockProvider implements LLMProvider {
         }
       }
 
+      // Priority 0: Dismiss install banners or popups if present
+      const dismissBtn = elements.find(
+        (el) =>
+          el.role === 'button' &&
+          (el.name.toLowerCase() === 'not now' ||
+            el.name.toLowerCase() === 'dismiss install prompt' ||
+            el.name.toLowerCase() === 'close')
+      );
+      if (dismissBtn && !prompt.includes(`click on [#${dismissBtn.index}]`)) {
+        return schema.parse({
+          action: 'click',
+          targetIndex: dismissBtn.index,
+          rationale: `Dismissing popup "${dismissBtn.name}" to access main interface`,
+          expectedOutcome: 'Popup closes',
+          isGoalComplete: false,
+          confidence: 0.95,
+        });
+      }
+
       // Priority 1: Fill any empty textboxes / inputs currently visible
       const emptyInput = elements.find(
         (el) =>
@@ -176,42 +197,81 @@ export class MockProvider implements LLMProvider {
 
       if (emptyInput) {
         const name = (emptyInput.name || emptyInput.raw).toLowerCase();
-        let val = 'test@example.com';
-        if (name.includes('name')) val = 'Alice Tester';
-        else if (name.includes('pass')) val = 'Password123!';
-        else if (name.includes('address') || name.includes('street')) val = '123 Market St';
-        else if (name.includes('zip') || name.includes('postal')) val = '90210';
-        else if (name.includes('promo') || name.includes('code')) val = 'LUNA10';
+        let val = 'alex.tester@example.com';
+        if (name.includes('company') || name.includes('team')) val = 'Acme Testing Labs';
+        else if (name.includes('name') || emptyInput.raw.includes('Jane Doe')) val = 'Alex Tester';
+        else if (name.includes('pass') || emptyInput.raw.includes('••••••••')) val = 'TesteraSafe123!';
+        else if (name.includes('address') || name.includes('street')) val = '123 Tech Blvd';
+        else if (name.includes('zip') || name.includes('postal')) val = '94107';
+        else if (name.includes('promo') || name.includes('code')) val = 'LUNA2026';
 
         return schema.parse({
           action: 'fill',
           targetIndex: emptyInput.index,
           value: val,
-          rationale: `Filling in field "${emptyInput.name}" with sample input`,
-          expectedOutcome: `Input "${emptyInput.name}" contains value`,
+          rationale: `Filling input "${emptyInput.name || 'form field'}" with test value`,
+          expectedOutcome: `Input "${emptyInput.name || 'form field'}" is populated`,
           isGoalComplete: false,
-          confidence: 0.92,
+          confidence: 0.94,
         });
       }
 
-      // Priority 2: If we are in the checkout modal and inputs are filled, click "Place Order" or "Submit"
-      const placeOrderBtn = elements.find(
+      // Priority 2: Submit Auth Form (Sign In or Sign Up) once inputs are populated
+      const authSubmitBtn = elements.find(
         (el) =>
           el.role === 'button' &&
-          (el.name.toLowerCase().includes('place order') || el.name.toLowerCase().includes('submit order'))
+          (el.name.toLowerCase() === 'sign in' ||
+            el.name.toLowerCase() === 'sign up' ||
+            el.name.toLowerCase() === 'place order' ||
+            el.name.toLowerCase() === 'submit order')
       );
-      if (placeOrderBtn) {
+      if (authSubmitBtn && !emptyInput) {
         return schema.parse({
           action: 'click',
-          targetIndex: placeOrderBtn.index,
-          rationale: `Clicking "${placeOrderBtn.name}" to finalize transaction`,
-          expectedOutcome: 'Order confirmation banner is displayed',
+          targetIndex: authSubmitBtn.index,
+          rationale: `Submitting form via "${authSubmitBtn.name}"`,
+          expectedOutcome: 'Form submitted, navigating to next screen',
           isGoalComplete: false,
           confidence: 0.96,
         });
       }
 
-      // Check if item has already been added to cart in history
+      // Priority 3: Goal mentions specific navigation (Pricing, Features, API Docs, Sign up, Login)
+      const navKeywords = [
+        { key: 'sign up', role: 'button', label: 'sign up' },
+        { key: 'sign in', role: 'button', label: 'sign in' },
+        { key: 'login', role: 'button', label: 'sign in' },
+        { key: 'pricing', role: 'a', label: 'pricing' },
+        { key: 'feature', role: 'a', label: 'features' },
+        { key: 'compare', role: 'a', label: 'compare' },
+        { key: 'faq', role: 'a', label: 'faq' },
+        { key: 'mcp', role: 'a', label: 'mcp' },
+        { key: 'api doc', role: 'a', label: 'api docs' },
+        { key: 'doc', role: 'a', label: 'api docs' },
+      ];
+
+      for (const nav of navKeywords) {
+        if (lowerPrompt.includes(nav.key)) {
+          const matchedNav = elements.find(
+            (el) =>
+              (el.role === nav.role || el.role === 'link' || el.role === 'button') &&
+              el.name.toLowerCase().includes(nav.label) &&
+              !prompt.includes(`click on [#${el.index}]`)
+          );
+          if (matchedNav) {
+            return schema.parse({
+              action: 'click',
+              targetIndex: matchedNav.index,
+              rationale: `Navigating to ${matchedNav.name} section based on journey goal`,
+              expectedOutcome: `Page views ${matchedNav.name}`,
+              isGoalComplete: false,
+              confidence: 0.95,
+            });
+          }
+        }
+      }
+
+      // Priority 4: E-Commerce cart & checkout
       const hasAddedToCartInHistory = prompt.includes('Add to Cart') || prompt.includes('add-headphones');
       const cartWithItems = elements.find(
         (el) =>
@@ -220,7 +280,6 @@ export class MockProvider implements LLMProvider {
           !el.name.includes('(0)')
       );
 
-      // Priority 3: If cart has items or we already added to cart, click "Cart" to open modal!
       if (cartWithItems || (hasAddedToCartInHistory && elements.some((e) => e.name.toLowerCase().includes('cart')))) {
         const cartBtn = elements.find((e) => e.role === 'button' && e.name.toLowerCase().includes('cart'));
         if (cartBtn) {
@@ -235,70 +294,37 @@ export class MockProvider implements LLMProvider {
         }
       }
 
-      // Priority 4: Goal mentions headphones or specific item -> Click "Add to Cart" for that item
-      const itemKeywords = ['headphone', 'keyboard', 'pro'];
-      const matchedItemBtn = elements.find((el) => {
-        if (el.role !== 'button') return false;
-        const fullDesc = `${el.name} ${el.context}`.toLowerCase();
-        return (
-          (fullDesc.includes('add to cart') || fullDesc.includes('add item')) &&
-          itemKeywords.some((k) => lowerPrompt.includes(k) && fullDesc.includes(k))
-        );
-      });
-
-      if (matchedItemBtn && !hasAddedToCartInHistory) {
-        return schema.parse({
-          action: 'click',
-          targetIndex: matchedItemBtn.index,
-          rationale: `Clicking "${matchedItemBtn.name}" for ${matchedItemBtn.context || 'selected product'}`,
-          expectedOutcome: 'Cart count increments',
-          isGoalComplete: false,
-          confidence: 0.95,
-        });
-      }
-
-      // Priority 5: Generic "Add to Cart" if cart count is 0
-      const addToCartBtn = elements.find(
-        (el) =>
-          el.role === 'button' &&
-          (el.name.toLowerCase().includes('add to cart') || el.name.toLowerCase().includes('add item'))
+      // Priority 5: Unexplored interactive element (links, tabs, buttons)
+      const unexplored = elements.find(
+        (e) =>
+          (e.role === 'button' || e.role === 'link' || e.role === 'a') &&
+          !prompt.includes(`click on [#${e.index}]`) &&
+          e.name.length > 1
       );
-      if (addToCartBtn && lowerPrompt.includes('cart (0)')) {
+      if (unexplored) {
         return schema.parse({
           action: 'click',
-          targetIndex: addToCartBtn.index,
-          rationale: `Adding product to cart (${addToCartBtn.context || 'catalog product'})`,
-          expectedOutcome: 'Cart count updates to 1',
+          targetIndex: unexplored.index,
+          rationale: `Exploring section "${unexplored.name}"`,
           isGoalComplete: false,
-          confidence: 0.92,
-        });
-      }
-
-      // Priority 6: First unexplored interactive element
-      if (elements.length > 0) {
-        return schema.parse({
-          action: 'click',
-          targetIndex: elements[0].index,
-          rationale: `Interacting with element "${elements[0].name}" to explore next state`,
-          isGoalComplete: false,
-          confidence: 0.7,
+          confidence: 0.85,
         });
       }
 
       return schema.parse({
         action: 'finish',
-        rationale: 'No further interactive elements found',
+        rationale: 'Exploration of interactive elements on this view is complete.',
         isGoalComplete: true,
-        confidence: 0.5,
+        confidence: 0.8,
       });
     }
 
     // Default fallback for Critic
     return schema.parse({
       functionality: 92,
-      usability: 88,
-      interaction: 94,
-      overall: 91,
+      usability: 90,
+      interaction: 95,
+      overall: 92,
       findings: [],
       transitionFeedback: 'Action executed smoothly with good responsiveness.',
     });
@@ -320,6 +346,5 @@ export function createLLMProvider(config: FrameworkConfig): LLMProvider {
     return new OpenAIProvider(config.apiKey, config.model || 'gpt-4o');
   }
 
-  // If no external provider key found, gracefully use MockProvider
   return new MockProvider();
 }

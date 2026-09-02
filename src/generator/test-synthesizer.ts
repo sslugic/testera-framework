@@ -36,7 +36,16 @@ export class TestSynthesizer {
         if (el.testId) {
           targetLocator = `page.getByTestId('${el.testId}')`;
         } else if (el.role && el.name) {
-          targetLocator = `page.getByRole('${el.role}', { name: '${el.name.replace(/'/g, "\\'")}' })`;
+          // Check for duplicate elements with identical role and name (e.g. Password & Confirm Password)
+          const duplicates = step.observationBefore.interactiveElements.filter(
+            (other) => other.role === el.role && other.name === el.name
+          );
+          if (duplicates.length > 1) {
+            const nthIndex = duplicates.findIndex((d) => d.index === el.index);
+            targetLocator = `page.getByRole('${el.role}', { name: '${el.name.replace(/'/g, "\\'")}' }).nth(${nthIndex >= 0 ? nthIndex : 0})`;
+          } else {
+            targetLocator = `page.getByRole('${el.role}', { name: '${el.name.replace(/'/g, "\\'")}' })`;
+          }
         } else if (el.name) {
           targetLocator = `page.getByText('${el.name.replace(/'/g, "\\'")}')`;
         } else {
