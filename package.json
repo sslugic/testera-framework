@@ -1,0 +1,48 @@
+{
+  "name": "@testera/framework",
+  "version": "0.1.0",
+  "description": "AI-driven UI exploration, autonomous testing, self-healing and scoring framework",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "testera": "./dist/cli/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "node --import tsx/esm test/unit.test.ts",
+    "demo:server": "tsx demo/demo-server.ts",
+    "explore": "tsx src/cli/cli.ts explore",
+    "journey": "tsx src/cli/cli.ts journey",
+    "heal": "tsx src/cli/cli.ts heal"
+  },
+  "keywords": [
+    "testing",
+    "ai",
+    "playwright",
+    "self-healing",
+    "autonomous-agent",
+    "accessibility",
+    "quality-assurance"
+  ],
+  "author": "Testera Labs",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/genai": "^2.20.0",
+    "axe-core": "^4.10.2",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "openai": "^4.86.1",
+    "ora": "^8.2.0",
+    "playwright": "^1.50.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
