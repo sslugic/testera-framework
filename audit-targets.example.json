@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Landing page",
+    "url": "https://example.com",
+    "goal": "Explore the homepage, navigation, and primary calls to action",
+    "maxSteps": 6
+  },
+  {
+    "url": "https://app.example.com/login",
+    "goal": "Inspect the login form and attempt sign-in with test credentials"
+  }
+]

@@ -132,6 +132,10 @@ export interface JourneyGoal {
   maxSteps?: number;
   userPersona?: string;
   customInstructions?: string;
+  /** Persist/reuse Playwright storage state (cookies/localStorage) */
+  storageStatePath?: string;
+  /** Whether this journey tests features inside an authenticated session (bypasses signup) */
+  authenticated?: boolean;
 }
 
 export interface StepRecord {
@@ -159,7 +163,7 @@ export interface SelfHealingPatch {
 }
 
 export interface FrameworkConfig {
-  provider: 'gemini' | 'anthropic' | 'openai' | 'mock';
+  provider: 'gemini' | 'anthropic' | 'openai' | 'cursor' | 'mock';
   apiKey?: string;
   model?: string;
   headless: boolean;
@@ -169,4 +173,6 @@ export interface FrameworkConfig {
   maxSteps: number;
   enableAxeCore: boolean;
   captureScreenshots: boolean;
+  /** Load/save Playwright storage state (cookies/localStorage) for multi-journey auth */
+  storageStatePath?: string;
 }

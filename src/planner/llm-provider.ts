@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { Agent } from '@cursor/sdk';
 import { z } from 'zod';
 import type { FrameworkConfig } from '../types/index.js';
 
@@ -106,6 +107,54 @@ export class OpenAIProvider implements LLMProvider {
 
     const content = completion.choices[0]?.message?.content || '{}';
     const parsed = JSON.parse(content);
+    return schema.parse(parsed);
+  }
+}
+
+function extractJsonText(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start >= 0 && end > start) return text.slice(start, end + 1);
+  return text.trim();
+}
+
+/**
+ * Cursor provider — uses the Luna workspace CURSOR_API_KEY via @cursor/sdk.
+ * Each structured call is a short local agent turn (~few seconds).
+ */
+export class CursorProvider implements LLMProvider {
+  public readonly name = 'cursor';
+  private apiKey: string;
+  private model: string;
+
+  constructor(apiKey?: string, model = 'composer-2.5') {
+    const key = apiKey || process.env.CURSOR_API_KEY;
+    if (!key) throw new Error('CURSOR_API_KEY is required for CursorProvider');
+    this.apiKey = key;
+    this.model = model;
+  }
+
+  async generateStructured<T>(
+    prompt: string,
+    schema: z.ZodSchema<T>,
+    systemPrompt?: string
+  ): Promise<T> {
+    const fullPrompt = `${systemPrompt ? `[SYSTEM INSTRUCTION]\n${systemPrompt}\n\n` : ''}${prompt}\n\nIMPORTANT: Respond with valid raw JSON only matching the schema. Do not enclose in markdown code blocks.`;
+
+    const result = await Agent.prompt(fullPrompt, {
+      apiKey: this.apiKey,
+      model: { id: this.model },
+      local: { cwd: process.cwd() },
+    });
+
+    if (result.status !== 'finished') {
+      throw new Error(result.error?.message || `Cursor agent run failed (${result.status})`);
+    }
+
+    const text = extractJsonText(result.result || '{}');
+    const parsed = JSON.parse(text);
     return schema.parse(parsed);
   }
 }
@@ -333,6 +382,10 @@ export class MockProvider implements LLMProvider {
 
 export function createLLMProvider(config: FrameworkConfig): LLMProvider {
   const providerType = config.provider || process.env.AI_PROVIDER || 'gemini';
+
+  if (providerType === 'cursor' && (config.apiKey || process.env.CURSOR_API_KEY)) {
+    return new CursorProvider(config.apiKey, config.model || process.env.CURSOR_MODEL || 'composer-2.5');
+  }
 
   if (providerType === 'gemini' && (config.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
     return new GeminiProvider(config.apiKey, config.model || 'gemini-2.5-flash');

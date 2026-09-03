@@ -46,7 +46,12 @@ export class TesteraEngine {
   constructor(config?: Partial<FrameworkConfig>) {
     this.config = {
       provider: (process.env.AI_PROVIDER as any) || 'gemini',
-      apiKey: process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY,
+      apiKey:
+        process.env.CURSOR_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        process.env.ANTHROPIC_API_KEY ||
+        process.env.OPENAI_API_KEY,
       headless: process.env.HEADLESS !== 'false',
       slowMo: parseInt(process.env.SLOW_MO || '0', 10),
       viewport: { width: 1280, height: 800 },
@@ -179,13 +184,26 @@ export class TesteraEngine {
           selfHealingPatch: patch,
         });
 
+        // Persist session immediately when authentication state is reached/updated
+        if (this.config.storageStatePath && execResult.success) {
+          const isAuthEvent =
+            /sign in|sign up|log in|register/i.test(action.rationale || '') ||
+            obsAfter.interactiveElements.some((el) => /logout|sign out|workspace|dashboard|settings/i.test(el.name || '')) ||
+            /dashboard|projects|test-plans/i.test(obsAfter.url);
+          if (isAuthEvent) {
+            await this.runtime.saveStorageState(this.config.storageStatePath).catch(() => {});
+          }
+        }
+
         stepIndex++;
       }
 
       // Generate Playwright spec & HTML report
       const runId = `run-${Date.now()}`;
       const generatedTestPath = path.join(this.config.artifactsDir, `${runId}.spec.ts`);
-      await TestSynthesizer.saveToFile(generatedTestPath, steps, goal, goal.goal);
+      await TestSynthesizer.saveToFile(generatedTestPath, steps, goal, goal.goal, {
+        storageStatePath: goal.storageStatePath || this.config.storageStatePath,
+      });
 
       const reportPath = path.join(this.config.artifactsDir, `${runId}-report.html`);
       await HTMLReporter.generate(reportPath, {
@@ -206,6 +224,9 @@ export class TesteraEngine {
         selfHealingPatches: patches,
       };
     } finally {
+      if (this.config.storageStatePath) {
+        await this.runtime.saveStorageState(this.config.storageStatePath).catch(() => {});
+      }
       await this.runtime.close();
     }
   }

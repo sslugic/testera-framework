@@ -1,13 +1,6 @@
-import { TesteraEngine } from '../src/engine.js';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-
-interface AuditTarget {
-  name: string;
-  url: string;
-  goal: string;
-  maxSteps: number;
-}
+import { loadWorkspaceEnv } from '../src/config/load-env.js';
+import { runAudit } from '../src/audit/run-audit.js';
+import type { AuditTarget } from '../src/audit/targets.js';
 
 const targets: AuditTarget[] = [
   {
@@ -37,56 +30,41 @@ const targets: AuditTarget[] = [
 ];
 
 async function runSuite() {
+  const { provider, envSources } = loadWorkspaceEnv();
+
   console.log('====================================================');
   console.log('  Testera Luna: Comprehensive Ecosystem Audit');
-  console.log('====================================================\n');
+  console.log('====================================================');
+  console.log(`  Provider: ${provider}`);
+  if (envSources.length) console.log(`  Env:      ${envSources.join(', ')}`);
+  console.log('');
 
-  const outDir = path.resolve(process.cwd(), 'reports/testera-suite');
-  await fs.mkdir(outDir, { recursive: true });
-
-  const summary = [];
-
-  for (const target of targets) {
-    console.log(`\n🔍 Auditing: ${target.name}`);
-    console.log(`   URL:  ${target.url}`);
-    console.log(`   Goal: "${target.goal}"`);
-
-    const engine = new TesteraEngine({
-      provider: 'mock',
-      headless: true,
-      maxSteps: target.maxSteps,
-      artifactsDir: outDir,
-    });
-
-    const result = await engine.runJourney({
-      goal: target.goal,
-      startUrl: target.url,
-      maxSteps: target.maxSteps,
-    });
-
-    console.log(`   ✔ Completed: ${result.steps.length} steps executed`);
-    console.log(`   Functionality : ${result.averageScore.functionality}/100`);
-    console.log(`   Usability     : ${result.averageScore.usability}/100`);
-    console.log(`   Interaction   : ${result.averageScore.interaction}/100`);
-    console.log(`   Quality Index : ${result.averageScore.overall}/100`);
-    console.log(`   Generated Spec: ${result.generatedTestPath}`);
-
-    summary.push({
-      target: target.name,
-      url: target.url,
-      steps: result.steps.length,
-      scores: result.averageScore,
-      specPath: result.generatedTestPath,
-      reportPath: result.reportPath,
-    });
-  }
+  const summary = await runAudit({
+    targets,
+    provider: provider as 'cursor' | 'gemini' | 'anthropic' | 'openai' | 'mock',
+    headless: true,
+    artifactsDir: './reports/testera-suite',
+    onTargetStart: (target) => {
+      console.log(`\n🔍 Auditing: ${target.name}`);
+      console.log(`   URL:  ${target.url}`);
+      console.log(`   Goal: "${target.goal}"`);
+    },
+    onTargetComplete: (target, result) => {
+      console.log(`   ✔ Completed: ${result.steps.length} steps executed`);
+      console.log(`   Functionality : ${result.averageScore.functionality}/100`);
+      console.log(`   Usability     : ${result.averageScore.usability}/100`);
+      console.log(`   Interaction   : ${result.averageScore.interaction}/100`);
+      console.log(`   Quality Index : ${result.averageScore.overall}/100`);
+      console.log(`   Generated Spec: ${result.generatedTestPath}`);
+    },
+  });
 
   console.log('\n====================================================');
   console.log('  Audit Portfolio Summary');
   console.log('====================================================');
   console.table(
     summary.map((s) => ({
-      Target: s.target,
+      Target: s.name,
       Steps: s.steps,
       Functionality: `${s.scores.functionality}%`,
       Usability: `${s.scores.usability}%`,

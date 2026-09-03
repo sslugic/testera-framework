@@ -15,9 +15,12 @@
     "demo:server": "tsx demo/demo-server.ts",
     "explore": "tsx src/cli/cli.ts explore",
     "journey": "tsx src/cli/cli.ts journey",
+    "audit": "tsx src/cli/cli.ts audit",
     "heal": "tsx src/cli/cli.ts heal",
     "audit:suite": "tsx scripts/audit-testera-suite.ts",
-    "test:generated": "playwright test reports/testera-suite/*.spec.ts"
+    "full:app": "tsx scripts/full-testera-app-audit.ts",
+    "test:generated": "playwright test reports/testera-suite/*.spec.ts",
+    "test:app": "playwright test reports/testera-app-full"
   },
   "keywords": [
     "testing",
@@ -32,6 +35,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@cursor/sdk": "^1.0.30",
     "@google/genai": "^2.20.0",
     "axe-core": "^4.10.2",
     "chalk": "^5.4.1",
