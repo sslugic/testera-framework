@@ -1,5 +1,9 @@
 # Testera Luna 🌙
 
+> 🌐 **Official testing engine for [Testera.io](https://testera.io)** — Autonomous QA, continuous testing, and quality intelligence.
+
+[![Website](https://img.shields.io/badge/Platform-Testera.io-0066FF?style=flat-square)](https://testera.io)
+
 **AI-Driven Autonomous UI Testing, Self-Healing, and Quality Scoring Framework.**
 
 Testera Luna bridges high-level user intent and Playwright browser execution through an autonomous agent loop powered by LLM planning, compact accessibility tree observations, multi-dimensional scoring, session-aware authentication reuse, and automatic self-healing.
