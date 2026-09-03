@@ -75,6 +75,13 @@ Converts successful journeys into idiomatic `@playwright/test` TypeScript test f
 - **Gherkin Portfolio Report**: Discovered journeys are translated into clean Given/When/Then scenarios paired with quality scorecards and step verification tables.
 - **Playwright HTML Report**: Full interactive execution trace viewer with step timings, network requests, screenshots, and error context.
 
+### 9. Safety Guardrails & Destructive Action Interception
+When pointing an autonomous agent at staging, pre-production, or live web applications, accidental clicks on destructive triggers (e.g. *"Delete Account"*, *"Reset Database"*, *"Cancel Subscription"*, *"Purge All Data"*) can cause irreversible damage. Testera Luna includes an automated safety barrier:
+- **Pre-Execution Interception**: The `SafetyGuard` validates every planned click, form fill, and keystroke before Playwright executes it.
+- **Pattern & Keyword Matching**: Intercepts destructive account deletion, organization wipes, database resets, financial transfers, subscription cancellations, and dangerous confirmation text inputs (`"DELETE"`, `"CONFIRM"`).
+- **Goal-Intent Verification**: If a destructive action is **explicitly requested** in the user's journey goal (e.g. *"Delete temporary project Demo"*), it is permitted. If encountered during general exploration or other feature testing, it is safely blocked without penalizing the app's quality score.
+- **Configurable**: Active by default (`SAFE_MODE=true` / `--safe-mode true`), or bypassable via `allowDestructive: true` / `--safe-mode false`.
+
 ---
 
 ## 🚀 Quick Start

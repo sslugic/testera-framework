@@ -87,6 +87,8 @@ export interface UIAction {
   expectedOutcome?: string;
   isGoalComplete?: boolean;
   confidence?: number;
+  isBlocked?: boolean;
+  blockedReason?: string;
 }
 
 export interface Finding {
@@ -136,6 +138,10 @@ export interface JourneyGoal {
   storageStatePath?: string;
   /** Whether this journey tests features inside an authenticated session (bypasses signup) */
   authenticated?: boolean;
+  /** Enforce safety guardrails to block destructive actions (defaults to true) */
+  safeMode?: boolean;
+  /** Explicitly allow destructive actions for this journey (e.g. testing project deletion) */
+  allowDestructive?: boolean;
 }
 
 export interface StepRecord {
@@ -175,4 +181,8 @@ export interface FrameworkConfig {
   captureScreenshots: boolean;
   /** Load/save Playwright storage state (cookies/localStorage) for multi-journey auth */
   storageStatePath?: string;
+  /** Enable safety guardrails to intercept destructive actions (default: true) */
+  safeMode?: boolean;
+  /** Custom destructive action regex or strings to block */
+  blockedActionPatterns?: string[];
 }

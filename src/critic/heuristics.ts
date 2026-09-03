@@ -22,14 +22,24 @@ export class HeuristicEvaluator {
 
     // 1. Functionality Checks
     if (!result.success) {
-      func -= 45;
-      findings.push({
-        category: 'functionality',
-        severity: 'critical',
-        message: `Action execution failed: ${result.error || 'Unknown error'}`,
-        elementIndex: action.targetIndex,
-        recommendation: 'Verify locator resolution or element interactability before dispatching action.',
-      });
+      if (result.error?.includes('[BLOCKED BY SAFETY GUARDRAIL]')) {
+        findings.push({
+          category: 'usability',
+          severity: 'low',
+          message: `Safety Guardrail intercepted destructive action: ${result.error}`,
+          elementIndex: action.targetIndex,
+          recommendation: 'Target non-destructive user flows unless testing destructive deletion is specifically requested in the goal.',
+        });
+      } else {
+        func -= 45;
+        findings.push({
+          category: 'functionality',
+          severity: 'critical',
+          message: `Action execution failed: ${result.error || 'Unknown error'}`,
+          elementIndex: action.targetIndex,
+          recommendation: 'Verify locator resolution or element interactability before dispatching action.',
+        });
+      }
     }
 
     // Telemetry errors check

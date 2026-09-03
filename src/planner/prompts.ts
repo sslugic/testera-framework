@@ -47,6 +47,9 @@ Core Rules:
    - ONLY register or sign up if the goal explicitly instructs to create/register a new account or test onboarding.
    - Never register a new account when testing other product features. If unexpectedly logged out, prefer signing in with existing credentials over signing up again.
    - Once a signup or login form has been submitted and accepted, immediately recognize that authentication is complete. Do not repeatedly click Sign Up or refill submitted fields.
+9. Safety & Destructive Action Guardrails (CRITICAL):
+   - NEVER click destructive, irreversible, or high-risk actions (e.g. "Delete Account", "Cancel Subscription", "Purge Data", "Reset Database", "Wipe Everything", "Terminate Workspace") unless the user's explicit goal specifically and unambiguously requests that exact destructive action.
+   - During autonomous exploration or general feature testing, strictly avoid triggering permanent destructive operations.
 `.trim();
 
 export function buildGoalPlannerPrompt(
@@ -94,12 +97,16 @@ export function buildGoalPlannerPrompt(
     authContext = `\n[AUTHENTICATION CONTEXT]\nStatus: GATE / LOGIN SCREEN ENCOUNTERED\nInstruction: Target goal is testing internal features ("${goal.goal}"), NOT account registration. If an active session exists or if credentials are known, Sign In. Do NOT register a new account.\n`;
   }
 
+  const safeModeNotice = (goal.safeMode ?? true) && !goal.allowDestructive
+    ? '\n[SAFETY GUARDRAIL]: Safe Mode Active. Do NOT attempt destructive actions (deleting accounts, dropping databases, cancelling subscriptions) unless explicitly asked in the goal.\n'
+    : '';
+
   return `
 [CURRENT TASK]
 Goal: "${goal.goal}"
 Step ${stepIndex} of maximum ${maxSteps}
 Start URL: ${goal.startUrl}
-${goal.customInstructions ? `Special Instructions: ${goal.customInstructions}\n` : ''}${authContext}
+${goal.customInstructions ? `Special Instructions: ${goal.customInstructions}\n` : ''}${authContext}${safeModeNotice}
 [HISTORY SO FAR]
 ${historyText}
 ${errorContext}

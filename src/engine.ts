@@ -12,11 +12,12 @@ import type {
 } from './types/index.js';
 import { BrowserRuntime } from './runtime/browser.js';
 import { PageObserver } from './observer/observer.js';
-import { ActionExecutor } from './runtime/executor.js';
+import { ActionExecutor, type ExecutionResult } from './runtime/executor.js';
 import { Planner } from './planner/planner.js';
 import { Critic } from './critic/critic.js';
 import { ExplorationGraph } from './memory/graph.js';
 import { SelfHealer } from './healer/self-healer.js';
+import { SafetyGuard } from './guardrails/safety-guard.js';
 import { TestSynthesizer } from './generator/test-synthesizer.js';
 import { HTMLReporter } from './reporter/html-reporter.js';
 
@@ -59,6 +60,7 @@ export class TesteraEngine {
       maxSteps: 15,
       enableAxeCore: true,
       captureScreenshots: true,
+      safeMode: process.env.SAFE_MODE !== 'false',
       ...config,
     };
 
@@ -113,41 +115,63 @@ export class TesteraEngine {
           break;
         }
 
-        // 3. Runtime: execute action
-        let execResult = await ActionExecutor.execute(page, action, obsBefore);
+        // 3. Safety Guardrail: validate before execution
+        const safetyCheck = SafetyGuard.validate(action, obsBefore, goal, {
+          safeMode: goal?.safeMode ?? this.config.safeMode,
+          blockedActionPatterns: this.config.blockedActionPatterns,
+          allowDestructive: goal?.allowDestructive,
+        });
+
+        let execResult: ExecutionResult;
         let healed = false;
         let patch: SelfHealingPatch | undefined;
 
-        // 4. Self-Healing recovery if execution failed
-        if (!execResult.success && action.targetIndex) {
-          const brokenElement = obsBefore.interactiveElements[action.targetIndex - 1];
-          if (brokenElement) {
-            const currentObs = await this.observer.observe(page, stepIndex);
-            const healedResult = SelfHealer.findHealedElement(
-              brokenElement.locatorFingerprint,
-              currentObs,
-              0.6
-            );
+        if (!safetyCheck.allowed) {
+          // Destructive action intercepted before execution
+          action.isBlocked = true;
+          action.blockedReason = safetyCheck.reason;
+          execResult = {
+            success: false,
+            duration: 0,
+            error: safetyCheck.reason,
+            targetUsed: safetyCheck.targetDescription,
+            actualAction: action,
+          };
+        } else {
+          // 4. Runtime: execute action
+          execResult = await ActionExecutor.execute(page, action, obsBefore);
 
-            if (healedResult) {
-              patch = SelfHealer.createPatch(
-                brokenElement.selector,
+          // 5. Self-Healing recovery if execution failed
+          if (!execResult.success && action.targetIndex) {
+            const brokenElement = obsBefore.interactiveElements[action.targetIndex - 1];
+            if (brokenElement) {
+              const currentObs = await this.observer.observe(page, stepIndex);
+              const healedResult = SelfHealer.findHealedElement(
                 brokenElement.locatorFingerprint,
-                healedResult.match,
-                healedResult.similarity,
-                stepIndex,
-                healedResult.reason
+                currentObs,
+                0.6
               );
-              patches.push(patch);
 
-              // Retry execution with healed target
-              const healedAction: UIAction = {
-                ...action,
-                targetIndex: healedResult.match.index,
-                rationale: `[SELF-HEALED: ${healedResult.reason}] ${action.rationale}`,
-              };
-              execResult = await ActionExecutor.execute(page, healedAction, currentObs);
-              healed = execResult.success;
+              if (healedResult) {
+                patch = SelfHealer.createPatch(
+                  brokenElement.selector,
+                  brokenElement.locatorFingerprint,
+                  healedResult.match,
+                  healedResult.similarity,
+                  stepIndex,
+                  healedResult.reason
+                );
+                patches.push(patch);
+
+                // Retry execution with healed target
+                const healedAction: UIAction = {
+                  ...action,
+                  targetIndex: healedResult.match.index,
+                  rationale: `[SELF-HEALED: ${healedResult.reason}] ${action.rationale}`,
+                };
+                execResult = await ActionExecutor.execute(page, healedAction, currentObs);
+                healed = execResult.success;
+              }
             }
           }
         }

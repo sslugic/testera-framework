@@ -6,6 +6,7 @@ import { TestSynthesizer } from '../src/generator/test-synthesizer.js';
 import { deriveStepAssertions, deriveFinalAssertions } from '../src/generator/assertion-synthesizer.js';
 import { buildGoalPlannerPrompt } from '../src/planner/prompts.js';
 import { SelfHealer } from '../src/healer/self-healer.js';
+import { SafetyGuard } from '../src/guardrails/safety-guard.js';
 import { TesteraEngine } from '../src/engine.js';
 import { createDemoServer } from '../demo/demo-server.js';
 import type { InteractiveElement, Observation, StepRecord, LocatorFingerprint } from '../src/types/index.js';
@@ -495,6 +496,91 @@ test('Planner: injects session reuse and authentication bypass instructions for 
 
   assert.ok(prompt.includes('AUTHENTICATED ACTIVE SESSION'), 'Expected prompt to detect active session');
   assert.ok(prompt.includes('DO NOT navigate to login/signup'), 'Expected prompt to instruct bypassing login/signup');
+});
+
+test('SafetyGuard: blocks destructive actions in safe mode during general exploration', () => {
+  const obs: Observation = {
+    stepIndex: 1,
+    url: 'https://app.example.com/settings',
+    title: 'Account Settings',
+    a11yTreeText: '[#1] button "Save Changes"\n[#2] button "Delete Account"',
+    interactiveElements: [
+      {
+        index: 1,
+        role: 'button',
+        name: 'Save Changes',
+        selector: '#save',
+        tagName: 'button',
+        disabled: false,
+        focused: false,
+        boundingBox: { x: 0, y: 0, width: 100, height: 30 },
+        locatorFingerprint: { role: 'button', name: 'Save Changes', tagName: 'button', cssSelector: '#save' },
+      },
+      {
+        index: 2,
+        role: 'button',
+        name: 'Delete Account',
+        selector: '#danger-delete',
+        tagName: 'button',
+        disabled: false,
+        focused: false,
+        boundingBox: { x: 100, y: 0, width: 120, height: 30 },
+        locatorFingerprint: { role: 'button', name: 'Delete Account', tagName: 'button', cssSelector: '#danger-delete' },
+      },
+    ],
+    telemetry: [],
+    domMetrics: { elementCount: 2, formCount: 0, headingCount: 0 },
+  };
+
+  const safeAction = { action: 'click' as const, targetIndex: 1, rationale: 'Saving profile' };
+  const safeResult = SafetyGuard.validate(safeAction, obs, { goal: 'Update profile', startUrl: 'https://app.example.com' });
+  assert.strictEqual(safeResult.allowed, true, 'Safe action should be allowed');
+
+  const dangerousAction = { action: 'click' as const, targetIndex: 2, rationale: 'Clicking delete account' };
+  const blockedResult = SafetyGuard.validate(dangerousAction, obs, { goal: 'Explore settings', startUrl: 'https://app.example.com' });
+  assert.strictEqual(blockedResult.allowed, false, 'Destructive action should be blocked in safe mode');
+  assert.ok(blockedResult.reason?.includes('BLOCKED BY SAFETY GUARDRAIL'), 'Expected safety guardrail reason');
+});
+
+test('SafetyGuard: permits destructive actions when explicitly requested in goal or safeMode is false', () => {
+  const obs: Observation = {
+    stepIndex: 1,
+    url: 'https://app.example.com/projects',
+    title: 'Projects',
+    a11yTreeText: '[#1] button "Delete Project"',
+    interactiveElements: [
+      {
+        index: 1,
+        role: 'button',
+        name: 'Delete Project',
+        selector: '#btn-del-proj',
+        tagName: 'button',
+        disabled: false,
+        focused: false,
+        boundingBox: { x: 0, y: 0, width: 100, height: 30 },
+        locatorFingerprint: { role: 'button', name: 'Delete Project', tagName: 'button', cssSelector: '#btn-del-proj' },
+      },
+    ],
+    telemetry: [],
+    domMetrics: { elementCount: 1, formCount: 0, headingCount: 0 },
+  };
+
+  const deleteAction = { action: 'click' as const, targetIndex: 1, rationale: 'Deleting project' };
+
+  // Explicit goal mentioning delete project
+  const intentionalResult = SafetyGuard.validate(deleteAction, obs, {
+    goal: 'Delete project called Temporary Project',
+    startUrl: 'https://app.example.com',
+  });
+  assert.strictEqual(intentionalResult.allowed, true, 'Explicitly requested delete should be allowed');
+
+  // Explicit safeMode disabled
+  const disabledSafeResult = SafetyGuard.validate(deleteAction, obs, {
+    goal: 'Explore projects',
+    startUrl: 'https://app.example.com',
+    safeMode: false,
+  });
+  assert.strictEqual(disabledSafeResult.allowed, true, 'Actions should be allowed when safeMode is disabled');
 });
 
 test('End-to-End: TesteraEngine executes journey on local web application', async () => {

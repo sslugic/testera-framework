@@ -34,10 +34,11 @@ program
   .option('--headless <boolean>', 'Run browser in headless mode', 'true')
   .option('-p, --provider <name>', 'AI Provider (cursor | gemini | anthropic | openai | mock)', process.env.AI_PROVIDER || 'gemini')
   .option('-o, --out-dir <path>', 'Output directory for reports', './reports')
+  .option('--safe-mode <boolean>', 'Enable safety guardrails to block destructive actions (default: true)', 'true')
   .action(async (url, options) => {
     console.log(chalk.bold.hex('#6366f1')('\n🚀 Testera Luna: Autonomous UI Exploration'));
     console.log(chalk.gray(`Target: ${url}`));
-    console.log(chalk.gray(`Provider: ${options.provider} | Max Steps: ${options.maxSteps}\n`));
+    console.log(chalk.gray(`Provider: ${options.provider} | Max Steps: ${options.maxSteps} | Safe Mode: ${options.safeMode}\n`));
 
     const spinner = ora('Launching browser runtime and exploring UI...').start();
 
@@ -46,6 +47,7 @@ program
       headless: options.headless !== 'false',
       maxSteps: parseInt(options.maxSteps, 10),
       artifactsDir: path.resolve(process.cwd(), options.outDir),
+      safeMode: options.safeMode !== 'false',
     });
 
     try {
@@ -167,10 +169,11 @@ program
   .option('--headless <boolean>', 'Run headless', 'true')
   .option('-p, --provider <name>', 'AI Provider (cursor | gemini | anthropic | openai | mock)', process.env.AI_PROVIDER || 'gemini')
   .option('-o, --out-dir <path>', 'Output directory', './reports')
+  .option('--safe-mode <boolean>', 'Enable safety guardrails to block destructive actions (default: true)', 'true')
   .action(async (url, options) => {
     console.log(chalk.bold.hex('#6366f1')('\n🎯 Testera Luna: Goal-Directed Journey'));
     console.log(chalk.white(`Goal: "${options.goal}"`));
-    console.log(chalk.gray(`Target: ${url} | Provider: ${options.provider}\n`));
+    console.log(chalk.gray(`Target: ${url} | Provider: ${options.provider} | Safe Mode: ${options.safeMode}\n`));
 
     const spinner = ora('Executing journey planner...').start();
 
@@ -179,6 +182,7 @@ program
       headless: options.headless !== 'false',
       maxSteps: parseInt(options.maxSteps, 10),
       artifactsDir: path.resolve(process.cwd(), options.outDir),
+      safeMode: options.safeMode !== 'false',
     });
 
     try {
@@ -186,6 +190,7 @@ program
         goal: options.goal,
         startUrl: url,
         maxSteps: parseInt(options.maxSteps, 10),
+        safeMode: options.safeMode !== 'false',
       });
 
       if (result.success) {

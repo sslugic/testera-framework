@@ -21,3 +21,4 @@ export * from './engine.js';
 export * from './audit/targets.js';
 export * from './audit/run-audit.js';
 export * from './config/load-env.js';
+export * from './guardrails/safety-guard.js';
